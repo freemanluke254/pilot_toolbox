@@ -1,3 +1,5 @@
+// Project-level Gradle build script
+
 allprojects {
     repositories {
         google()
@@ -5,6 +7,7 @@ allprojects {
     }
 }
 
+// ✅ Needed for custom build directory layout in Flutter
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
         .dir("../../build")
@@ -19,6 +22,7 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// ✅ Clean task
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }

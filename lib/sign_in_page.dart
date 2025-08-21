@@ -1,0 +1,301 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class SignInPage extends StatefulWidget {
+  final ThemeMode themeMode;
+  final VoidCallback onToggleTheme;
+  const SignInPage(
+      {super.key, required this.themeMode, required this.onToggleTheme});
+
+  @override
+  State<SignInPage> createState() => _SignInPageState();
+}
+
+class _SignInPageState extends State<SignInPage> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  String emailError = '';
+  String passwordError = '';
+  String generalError = '';
+  bool _rememberMe = false;
+  bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberedEmail();
+  }
+
+  Future<void> _loadRememberedEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _rememberMe = prefs.getBool('remember_me') ?? false;
+      if (_rememberMe) {
+        _emailController.text = prefs.getString('email') ?? '';
+      }
+    });
+  }
+
+  Future<void> _signIn() async {
+    setState(() {
+      emailError = '';
+      passwordError = '';
+      generalError = '';
+    });
+    if (_formKey.currentState!.validate()) {
+      try {
+        final userCredential =
+            await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+        );
+
+        final user = userCredential.user;
+
+        if (user != null && !user.emailVerified) {
+          // 🚫 Block login if not verified
+          await FirebaseAuth.instance.signOut();
+          setState(() {
+            generalError = "Please verify your email before signing in.";
+          });
+          return;
+        }
+
+        final prefs = await SharedPreferences.getInstance();
+        if (_rememberMe) {
+          await prefs.setString('email', _emailController.text.trim());
+        } else {
+          await prefs.remove('email');
+        }
+        await prefs.setBool('remember_me', _rememberMe);
+      } on FirebaseAuthException catch (_) {
+        setState(() {
+          generalError = "Incorrect email address or password";
+        });
+      }
+    }
+  }
+
+  Future<void> _forgotPassword() async {
+    if (_emailController.text.trim().isEmpty) {
+      setState(() {
+        emailError = "Enter your email to reset password";
+      });
+      return;
+    }
+
+    try {
+      await FirebaseAuth.instance
+          .sendPasswordResetEmail(email: _emailController.text.trim());
+
+      showDialog(
+        context: context,
+        builder: (context) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          return AlertDialog(
+            title: Text("Password Reset",
+                style: TextStyle(color: isDark ? Colors.white : Colors.black)),
+            content: Text(
+              "If an account exists with this email, a reset link has been sent.",
+              style:
+                  TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+            ),
+            backgroundColor: isDark ? Colors.black : Colors.white,
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      isDark ? const Color(0xFFF5D5E0) : const Color(0xFF023859),
+                  foregroundColor: isDark ? Colors.black : Colors.white,
+                ),
+                child: const Text("OK"),
+              ),
+            ],
+          );
+        },
+      );
+    } catch (_) {
+      setState(() {
+        generalError = "Something went wrong. Try again.";
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? Colors.white : Colors.black;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Sign In"),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            onPressed: widget.onToggleTheme,
+            icon: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 500),
+              transitionBuilder: (child, anim) => RotationTransition(
+                turns: child.key == const ValueKey("sun")
+                    ? Tween<double>(begin: 0.75, end: 1.0).animate(anim)
+                    : Tween<double>(begin: 1.25, end: 1.0).animate(anim),
+                child: ScaleTransition(scale: anim, child: child),
+              ),
+              child: Icon(
+                isDark ? Icons.nightlight_round : Icons.wb_sunny_rounded,
+                key: ValueKey(isDark ? "moon" : "sun"),
+                size: 30,
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextFormField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                textCapitalization: TextCapitalization.none,
+                onChanged: (val) {
+                  _emailController.value = _emailController.value.copyWith(
+                    text: val.toLowerCase(),
+                    selection: TextSelection.collapsed(offset: val.length),
+                  );
+                },
+                style: TextStyle(fontSize: 20, color: borderColor),
+                cursorColor: borderColor,
+                decoration: InputDecoration(
+                  labelText: "Email",
+                  hintText: "your@email.com",
+                  labelStyle: TextStyle(color: borderColor),
+                  hintStyle: TextStyle(color: borderColor.withOpacity(0.7)),
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(color: borderColor, width: 1.5),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: borderColor, width: 2),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: borderColor, width: 1.5),
+                  ),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return "Enter email";
+                  }
+                  final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
+                  if (!emailRegex.hasMatch(value)) {
+                    return "Enter a valid email address";
+                  }
+                  return null;
+                },
+              ),
+              if (emailError.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(emailError,
+                      style: const TextStyle(color: Colors.red, fontSize: 16)),
+                ),
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                style: TextStyle(fontSize: 20, color: borderColor),
+                cursorColor: borderColor,
+                decoration: InputDecoration(
+                  labelText: "Password",
+                  hintText: "Enter your password",
+                  labelStyle: TextStyle(color: borderColor),
+                  hintStyle: TextStyle(color: borderColor.withOpacity(0.7)),
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(color: borderColor, width: 1.5),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: borderColor, width: 2),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: borderColor, width: 1.5),
+                  ),
+                  suffixIcon: GestureDetector(
+                    onLongPress: () {
+                      setState(() => _obscurePassword = false);
+                    },
+                    onLongPressUp: () {
+                      setState(() => _obscurePassword = true);
+                    },
+                    child: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                      color: borderColor,
+                    ),
+                  ),
+                ),
+                validator: (value) =>
+                    value == null || value.isEmpty ? "Enter password" : null,
+              ),
+              if (passwordError.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(passwordError,
+                      style: const TextStyle(color: Colors.red, fontSize: 16)),
+                ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Checkbox(
+                    value: _rememberMe,
+                    onChanged: (val) {
+                      setState(() => _rememberMe = val ?? false);
+                    },
+                  ),
+                  const Text("Remember me"),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: _forgotPassword,
+                    child: Text(
+                      "Forgot password?",
+                      style: TextStyle(
+                        color:
+                            isDark ? Colors.white : const Color(0xFF023859),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _signIn,
+                child: const Text("Sign In"),
+              ),
+              const SizedBox(height: 15),
+              ElevatedButton(
+                onPressed: () =>
+                    Navigator.of(context).pushNamed('/create-account'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      isDark ? const Color(0xFF7B337E) : const Color(0xFF26658C),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text("Create Account"),
+              ),
+              if (generalError.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                Text(generalError,
+                    style: const TextStyle(color: Colors.red, fontSize: 18)),
+              ]
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

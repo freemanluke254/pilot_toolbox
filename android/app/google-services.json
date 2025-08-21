@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "591676938616",
+    "project_id": "pilot-toolbox-98b8e",
+    "storage_bucket": "pilot-toolbox-98b8e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:591676938616:android:af68f5acf5a7f3cf1bd08d",
+        "android_client_info": {
+          "package_name": "com.pilottoolbox.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAPjiNczEMzvTw4LKEJLXWPQRvR98Twh6w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
